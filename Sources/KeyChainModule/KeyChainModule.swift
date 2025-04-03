@@ -7,16 +7,17 @@ public final class KeyChainModule {
     public enum Key: String {
         case accessToken
         case refreshToken
+        case isLogin
     }
     
-    public class func create(key: Key, data: String) {
-        let query: NSDictionary = [
+    public static func create(key: Key, data: String) {
+        let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key.rawValue,
             kSecValueData: data.data(using: .utf8) as Any
         ]
         
-        let status = SecItemAdd(query, nil)
+        let status = SecItemAdd(query as CFDictionary, nil)
         
         switch status {
         case errSecSuccess:
@@ -28,8 +29,8 @@ public final class KeyChainModule {
         }
     }
     
-    public class func read(key: Key) -> String? {
-        let query: NSDictionary = [
+    public static func read(key: Key) -> String? {
+        let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key.rawValue,
             kSecReturnData: kCFBooleanTrue as Any,
@@ -37,7 +38,7 @@ public final class KeyChainModule {
         ]
         
         var dataTypeRef: AnyObject?
-        let status = SecItemCopyMatching(query, &dataTypeRef)
+        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
         
         if status == errSecSuccess {
             guard let retrieveData = dataTypeRef as? Data else {
@@ -50,17 +51,17 @@ public final class KeyChainModule {
         }
     }
     
-    public class func update(key: Key, data: String) {
-        let previousQuery: NSDictionary = [
+    public static func update(key: Key, data: String) {
+        let previousQuery: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key.rawValue,
         ]
         
-        let updateQuery: NSDictionary = [
+        let updateQuery: [CFString: Any] = [
             kSecValueData: data.data(using: .utf8) as Any
         ]
         
-        let status = SecItemUpdate(previousQuery, updateQuery)
+        let status = SecItemUpdate(previousQuery as CFDictionary, updateQuery as CFDictionary)
         
         switch status {
         case errSecSuccess:
@@ -70,13 +71,14 @@ public final class KeyChainModule {
         }
     }
     
-    public class func delete(key: Key) {
-        let query: NSDictionary = [
+    public static func delete(key: Key) {
+        let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key.rawValue
         ]
         
-        let status = SecItemDelete(query)
+        let status = SecItemDelete(query as CFDictionary)
+        
         assert(status == noErr, "키체인 삭제 실패")
     }
 }
