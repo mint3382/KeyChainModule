@@ -10,11 +10,15 @@ public final class KeyChainModule {
         case isLogin
     }
     
-    public static func create(key: Key, data: String) {
+    public static func create(key: Key, data: String) throws {
+        guard let valueData = data.data(using: .utf8) else {
+            throw KeyChainError.dataEncodingFailed
+        }
+        
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key.rawValue,
-            kSecValueData: data.data(using: .utf8) as Any
+            kSecValueData: valueData
         ]
         
         let status = SecItemAdd(query as CFDictionary, nil)
@@ -23,13 +27,14 @@ public final class KeyChainModule {
         case errSecSuccess:
             print("keychain success")
         case errSecDuplicateItem:
-            update(key: key, data: data)
+            try update(key: key, data: data)
         default:
             print("keychain create failure")
+            throw KeyChainError.keyChainOperationFailed(status)
         }
     }
     
-    public static func read(key: Key) -> String? {
+    public static func read(key: Key) throws -> String? {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key.rawValue,
@@ -40,38 +45,42 @@ public final class KeyChainModule {
         var dataTypeRef: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
         
-        if status == errSecSuccess {
-            guard let retrieveData = dataTypeRef as? Data else {
-                return nil
-            }
-            let value = String(data: retrieveData, encoding: String.Encoding.utf8)
-            return value
-        } else {
-            return nil
+        guard status == errSecSuccess else {
+            throw KeyChainError.keyChainOperationFailed(status)
         }
+        
+        guard let retrieveData = dataTypeRef as? Data,
+              let value = String(data: retrieveData, encoding: String.Encoding.utf8) else {
+            throw KeyChainError.dataEncodingFailed
+        }
+        
+        return value
     }
     
-    public static func update(key: Key, data: String) {
+    public static func update(key: Key, data: String) throws {
+        guard let valueData = data.data(using: .utf8) else {
+            throw KeyChainError.dataEncodingFailed
+        }
+        
         let previousQuery: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key.rawValue,
         ]
         
         let updateQuery: [CFString: Any] = [
-            kSecValueData: data.data(using: .utf8) as Any
+            kSecValueData: valueData
         ]
         
         let status = SecItemUpdate(previousQuery as CFDictionary, updateQuery as CFDictionary)
         
-        switch status {
-        case errSecSuccess:
-            print("keychain update success")
-        default:
-            print("keychain update failure")
+        guard status == errSecSuccess else {
+            throw KeyChainError.keyChainOperationFailed(status)
         }
+        
+        print("keychain update success")
     }
     
-    public static func delete(key: Key) {
+    public static func delete(key: Key) throws {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key.rawValue
@@ -79,6 +88,9 @@ public final class KeyChainModule {
         
         let status = SecItemDelete(query as CFDictionary)
         
-        assert(status == noErr, "키체인 삭제 실패")
+        // 키가 없으면 errSecItemNotFound가 반환 -> 성공으로 처리
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeyChainError.keyChainOperationFailed(status)
+        }
     }
 }
